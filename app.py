@@ -15,6 +15,8 @@ current_investments = st.sidebar.number_input("Current Investments", min_value=0
 # monthly_savings = st.sidebar.number_input("Your Monthly Savings / Investments (₹)", min_value=0, value=10000, step=1000)
 monthly_savings = 0
 current_monthly_expenses = st.sidebar.number_input("Your Current Monthly Expenses (₹)", min_value=0, value=50000, step=5000)
+mode = st.sidebar.selectbox("Do You want your investments back?", options=["Yes", "No"])
+
 expected_return = st.sidebar.slider("Expected Annual Return on Investments (%)", min_value=3.0, max_value=25.0, value=12.0, step=0.5)
 inflation_rate = st.sidebar.slider("Expected Annual Inflation Rate (%)", min_value=0.0, max_value=12.0, value=8.0, step=0.5)
 
@@ -45,7 +47,13 @@ monthly_expenses = current_monthly_expenses * (1 + inflation_rate/100) ** (years
 fire_corpus = 0
 left_over, SWP_corpus = SWP(fire_corpus, monthly_expenses, 8, retirement_age, expected_mortality)
 
-while left_over < 0:
+threshold = 0
+if mode == "Yes":
+    threshold = current_investments
+else:
+    threshold = 0
+
+while left_over < threshold:
     left_over, SWP_corpus = SWP(fire_corpus, monthly_expenses, 8, retirement_age, expected_mortality)
     fire_corpus += 100000
 # fire_corpus = future_value(fire_corpus_today, inflation_rate/100, n)
@@ -167,7 +175,7 @@ with tab2:
 
 
     # Graph 4: Yearly Net Corpus Growth
-    st.subheader("Yearly Net Corpus Growth")
+    st.subheader("Yearly Corpus Growth")
     net_growth = [round(fire_progress[i] - fire_progress[i - 1], 2) if i > 0 else 0 for i in range(len(fire_progress))]
 
     # Combine Net and Gross Corpus Growth
@@ -216,7 +224,7 @@ with tab3:
         })
     ])
 
-    import plotly.express as px
+    
     # Prepare data for plotting
     df_combined_plot = pd.DataFrame({
         "Year": df_combined["Year"],
