@@ -2,77 +2,81 @@ import streamlit as st
 import pandas as pd
 import numpy_financial as npf
 import plotly_express as px
-# App title
-st.title("Retirement Toolkit")
 
-# Sidebar for all inputs
-st.sidebar.header("User Inputs")
+# App title
+st.set_page_config(layout="wide", page_icon="/Users/shreyaskali/Sync/Projects/Retirement Planner/Screenshot_2024-12-19_at_9.37.16_AM-removebg-preview.png")  # Enables wide mode
+st.title("Retirement Toolkit")
 
 # General inputs
 current_age = st.sidebar.number_input("Your Current Age", min_value=18, max_value=70, value=30, step=1)
 retirement_age = st.sidebar.number_input("Retirement Age / Target FIRE Age", min_value=current_age+1, max_value=80, value=max(50, current_age+1), step=1)
-current_investments = st.sidebar.number_input("Current Investments", min_value=0, value=0, step=50000)
+current_investments = st.sidebar.number_input("Current Investments", min_value=0, value=0, step=100000)
 # monthly_savings = st.sidebar.number_input("Your Monthly Savings / Investments (₹)", min_value=0, value=10000, step=1000)
-monthly_savings = 0
+
 current_monthly_expenses = st.sidebar.number_input("Your Current Monthly Expenses (₹)", min_value=0, value=50000, step=5000)
-mode = st.sidebar.selectbox("Do You want your investments back?", options=["Yes", "No"])
+next_gen = st.sidebar.number_input("Inheritance Amount for your Future Generation", min_value=0, value=10000000, step=5000000)
 
 expected_return = st.sidebar.slider("Expected Annual Return on Investments (%)", min_value=3.0, max_value=25.0, value=12.0, step=0.5)
 inflation_rate = st.sidebar.slider("Expected Annual Inflation Rate (%)", min_value=0.0, max_value=12.0, value=8.0, step=0.5)
 
-safe_withdrawal_rate = 4
+safe_withdrawal_rate = 3
 expected_mortality = 80
 years_to_fire = retirement_age - current_age + 1
-
-def SWP(corpus, withdrawal_amount, rate, retirement_age, mortality):
-    corpus_left = []
-    retirement_period = mortality - retirement_age
-    for i in range(retirement_period):
-        corpus -= 12 * withdrawal_amount
-        corpus = corpus * (1 + rate/100)
-        corpus_left.append(corpus)
-    left_over = corpus
-    return left_over, corpus_left
+retirement_period = expected_mortality - retirement_age
 
 # Calculate values common to both planners
-annual_savings = monthly_savings * 12
 rate_of_return = expected_return / 100
-inflation_adjusted_return = (1 + rate_of_return) / (1 + inflation_rate / 100) - 1
+inflation_rate = inflation_rate / 100
+portfolio_return = st.sidebar.slider("Expected Retirement Portfolio Return (%)", min_value=3.0, max_value=15.0, value=8.0, step=0.5)/100
+
 annual_expenses = current_monthly_expenses * 12
+monthly_expenses = current_monthly_expenses * (1 + inflation_rate) ** (years_to_fire)
 
-monthly_expenses = current_monthly_expenses * (1 + inflation_rate/100) ** (years_to_fire)
+def SWP(corpus, withdrawal_amount, portfolio_return, inflation_rate, current_age, retirement_age, mortality):
+    corpus_left = []
+    retirement_period = mortality - retirement_age
+    years_to_retirement = retirement_age - current_age
+    withdrawal_amount = withdrawal_amount * (1+inflation_rate)**years_to_retirement
 
-# fire_corpus = annual_expenses / (safe_withdrawal_rate / 100)
+    for i in range(retirement_period):
+        corpus -= 12 * withdrawal_amount
+        corpus_left.append(round(corpus))
+        corpus = corpus * (1 + portfolio_return)
+        withdrawal_amount = withdrawal_amount * (1+inflation_rate)
+
+    return corpus_left
+
 
 fire_corpus = 0
-left_over, SWP_corpus = SWP(fire_corpus, monthly_expenses, 8, retirement_age, expected_mortality)
+# SWP_corpus = SWP(fire_corpus, current_monthly_expenses, inflation_rate, current_age, retirement_age, expected_mortality)
+left_over = -1
 
-threshold = 0
-if mode == "Yes":
-    threshold = current_investments
-else:
-    threshold = 0
 
-while left_over < threshold:
-    left_over, SWP_corpus = SWP(fire_corpus, monthly_expenses, 8, retirement_age, expected_mortality)
+while left_over < next_gen:
     fire_corpus += 100000
-# fire_corpus = future_value(fire_corpus_today, inflation_rate/100, n)
+    SWP_corpus = SWP(fire_corpus, current_monthly_expenses, portfolio_return, inflation_rate, current_age, retirement_age, expected_mortality)
+    left_over = SWP_corpus[-1]
+
+SWP_corpus = SWP(fire_corpus, current_monthly_expenses, portfolio_return, inflation_rate, current_age, retirement_age, expected_mortality)
+left_over = SWP_corpus[-1]
 
 # Retirement Planner Calculation
-# future_retirement_corpus = npf.fv(rate_of_return, retirement_age-current_age+1, -annual_savings, -current_investments)
-# st.write(future_retirement_corpus/100000)
+shortfall = max(round(fire_corpus - current_investments * (1 + rate_of_return)**(retirement_age - current_age)), 0)
+# print(shortfall, fire_corpus, current_investments)
 
-# FIRE Progress Calculation
-fire_progress = [npf.fv(pv=-current_investments+annual_savings, pmt=-annual_savings, rate=rate_of_return, nper=i) for i in range(years_to_fire)]
-# st.write(len(fire_progress)) 
-while fire_progress[-1] < fire_corpus:
-    monthly_savings += 1000
-    fire_progress = [npf.fv(pv=-current_investments+annual_savings, pmt=-monthly_savings*12, rate=rate_of_return, nper=i) for i in range(years_to_fire)]
+# Estimate SIP required to cover the shortfall
+SIP = npf.pmt(nper=(retirement_age - current_age), rate=rate_of_return, pv=0, fv=shortfall)
+monthly_savings = max(0, round(-SIP/12))
+# print(npf.fv(rate=rate_of_return, nper=(retirement_age - current_age), pmt=SIP, pv=0))
+
+# Fire progress calculation
+fire_progress = [npf.fv(rate=rate_of_return, nper=i, pmt=-monthly_savings*12, pv=-current_investments) for i in range((retirement_age - current_age + 1))]
+total_corpus = current_investments*(1+rate_of_return)**(retirement_age - current_age) + npf.fv(rate=rate_of_return, nper=(retirement_age - current_age), pmt=SIP, pv=0)
+# print(fire_progress)
 
 # Tab-based layout for Retirement Planner and FIRE Number Calculator
 tab1, tab2, tab3 = st.tabs(["Retirement Planner", "FIRE Number Calculator", "Simulation"])
 
-# Tab 1: Retirement Planner
 # Tab 1: Retirement Planner
 with tab1:
     if monthly_savings == 0:
@@ -83,9 +87,9 @@ with tab1:
     with c2:
         # Pie Chart: Contributions vs. Returns Breakdown
         total_contributions = monthly_savings * 12 * years_to_fire
-        total_returns = fire_progress[-1] - total_contributions - current_investments
+        total_returns = total_corpus - total_contributions - current_investments
         breakdown = pd.DataFrame({
-            "Source": ["Contributions", "Returns", "Initial Investments"],
+            "Source": ["SIP Contributions", "Returns", "Initial Investments"],
             "Amount": [total_contributions, total_returns, current_investments]
         })
         st.plotly_chart(
@@ -95,7 +99,7 @@ with tab1:
 
     with c1:
         # Metrics for quick insights
-        st.metric("Estimated Corpus at Retirement", f"₹{fire_progress[-1]:,.2f}")
+        st.metric("Estimated Corpus at Retirement", f"₹{total_corpus:,.0f}")
         st.metric("Monthly Savings Required", f"₹{monthly_savings}")
         st.metric("Remaining Years to Retirement", f"{years_to_fire} years")
         st.metric("Retirement Period", f"{expected_mortality - retirement_age} Years")
@@ -104,31 +108,11 @@ with tab1:
 
     st.info(f"Your inflation adjusted monthly expenses of ₹{round(monthly_expenses)} post retirement are all covered!")
              
-
-
-    # Graph 3: Inflation Impact on Purchasing Power
-    st.subheader("Inflation-Adjusted Corpus vs. Expenses")
-    inflation_adjusted_corpus = [
-        corpus / (1 + inflation_rate / 100) ** i for i, corpus in enumerate(fire_progress)
-    ]
-    projected_expenses = [annual_expenses * (1 + inflation_rate / 100) ** i for i in range(len(years))]
-    if len(years) == len(inflation_adjusted_corpus) == len(projected_expenses):
-        df_inflation_impact = pd.DataFrame({
-            "Year": years,
-            "Inflation-Adjusted Corpus (₹)": inflation_adjusted_corpus,
-            "Projected Annual Expenses (₹)": projected_expenses
-        })
-        st.line_chart(df_inflation_impact.set_index("Year"), use_container_width=True)
-    else:
-        st.error("Mismatch in lengths for inflation-adjusted corpus and expenses.")
-
-
 # Tab 2: FIRE Number Calculator
 with tab2:
     st.header("FIRE Number Calculator")
     
-    # Metrics
-    
+    # Metrics for FIRE Number and Monthly Investments Required
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Your FIRE Number", f"₹{fire_corpus / 10000000:,.2f} Cr." if fire_corpus > 10000000 else f"₹{fire_corpus:,.2f}")
@@ -142,8 +126,8 @@ with tab2:
     # Combined DataFrame for Pre- and Post-Retirement Phases
 
     # Generate inflation-adjusted monthly withdrawal amounts for withdrawal phase
-    inflation_adjusted_withdrawal = [monthly_expenses * (1 + inflation_rate / 100) ** i 
-                                    for i in range(expected_mortality - retirement_age)]
+    inflation_adjusted_withdrawal = [monthly_expenses * (1 + inflation_rate) ** i 
+                                    for i in range(retirement_period)]
 
     # Updated DataFrame with Monthly Withdrawal (Inflation Adjusted)
     df_combined = pd.concat([
@@ -170,7 +154,7 @@ with tab2:
 
 
     # Combined Graph
-    st.subheader("FIRE Corpus Growth (Accumulation + Withdrawal)")
+    st.subheader("Portfolio Growth Over Time")
     st.line_chart(df_combined.pivot(index="Year", columns="Phase", values="Corpus (₹)"), use_container_width=True)
 
 
@@ -201,11 +185,15 @@ with tab2:
 # Display in the Simulation Tab
 with tab3:
     # Generate inflation-adjusted monthly withdrawal amounts for withdrawal phase
-    inflation_adjusted_withdrawal = [monthly_expenses * (1 + inflation_rate / 100) ** i 
+    inflation_adjusted_withdrawal = [monthly_expenses * (1 + inflation_rate) ** i 
                                     for i in range(expected_mortality - retirement_age)]
     
-    excess_saved = max(fire_progress[-2] - SWP_corpus[0], 0)
-    total_corpus = [SWP_corpus[i] + excess_saved*(1+rate_of_return)**i for i in range(len(SWP_corpus))]
+    excess_corpus = round(fire_progress[-1]) - fire_corpus
+    if excess_corpus > 100000:
+        st.write(f"Excess Corpus: ₹{excess_corpus:,.0f}")
+    
+    # st.write(SWP_corpus)
+    total_corpus = [excess_corpus*(1+rate_of_return)**i + SWP_corpus[i] for i in range(len(SWP_corpus))]
     # Plot
     df_combined = pd.concat([
         pd.DataFrame({
@@ -213,6 +201,7 @@ with tab3:
             "Corpus (₹)": fire_progress[:years_to_fire - 1],  # Exclude the retirement year from accumulation
             "Yearly SIP Contribution (₹)": [monthly_savings * 12] * (years_to_fire-1),
             "Monthly Withdrawal (₹)": [0] * (years_to_fire - 1),  # No withdrawals during accumulation
+            "Withdrawal Rate (%)": [0] * (years_to_fire - 1),
             "Phase": "Accumulation",
         }),
         pd.DataFrame({
@@ -220,6 +209,7 @@ with tab3:
             "Corpus (₹)": total_corpus,
             "Yearly SIP Contribution (₹)": [0] * len(SWP_corpus),  # No SIP during withdrawal
             "Monthly Withdrawal (₹)": inflation_adjusted_withdrawal,
+            "Withdrawal Rate (%)": [inflation_adjusted_withdrawal[0]*100 /  fire_corpus] + [inflation_adjusted_withdrawal[i] * 100 / total_corpus[i-1] for i in range(1, len(inflation_adjusted_withdrawal))],
             "Phase": "Withdrawal",
         })
     ])
@@ -232,6 +222,8 @@ with tab3:
         # "Yearly SIP Contribution (₹)": df_combined["Yearly SIP Contribution (₹)"],
         "Yearly Withdrawals (₹)": df_combined["Monthly Withdrawal (₹)"] * 12,  # Convert monthly to yearly
     })
+
+    # print(df_combined)
 
     # Melt the data for Plotly Express
     df_combined_long = df_combined_plot.melt(
@@ -281,8 +273,24 @@ with tab3:
             "Corpus (₹)": "₹{:.2f}",
             "Monthly Withdrawal (₹)": "₹{:.2f}",
             "Yearly SIP Contribution (₹)": "₹{:.2f}",
+            "Withdrawal Rate (%)": "{:.2f}%"
         }),
         height=35 * len(df_combined) + 38,
         use_container_width=True,
         hide_index=True
     )
+
+    # Final Stacked Bar Chart for Simulation
+fig = px.bar(
+    df_combined_long,
+    x="Year",
+    y="Amount",
+    color="Type",
+    title="Retirement Corpus and Withdrawals",
+    labels={"Amount": "₹ (Indian Rupees)", "Year": "Year"},
+    barmode="stack",
+    template="plotly_white"
+)
+
+st.divider()
+st.caption("Created with :heart: for Investors by [Kali Wealth](https://kaliwealth.in)") 
