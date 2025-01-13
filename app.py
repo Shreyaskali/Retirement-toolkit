@@ -77,7 +77,7 @@ total_corpus = current_investments*(1+rate_of_return)**(retirement_age - current
 # print(fire_progress)
 
 # Tab-based layout for Retirement Planner and FIRE Number Calculator
-tab1, tab2, tab3 = st.tabs(["Retirement Planner", "FIRE Number Calculator", "Simulation"])
+tab1, tab2, tab3 = st.tabs(["Retirement Planner", "FIRE Estimator", "Simulation"])
 
 # Tab 1: Retirement Planner
 with tab1:
