@@ -7,6 +7,8 @@ import plotly_express as px
 st.set_page_config(layout="wide", page_icon="/Users/shreyaskali/Sync/Projects/Retirement Planner/Screenshot_2024-12-19_at_9.37.16_AM-removebg-preview.png")  # Enables wide mode
 st.title("Retirement Toolkit")
 
+st.caption("Adjust parameters in the sidebar to match your unique financial situation.")
+
 # General inputs
 current_age = st.sidebar.number_input("Your Current Age", min_value=18, max_value=70, value=30, step=1)
 retirement_age = st.sidebar.number_input("Retirement Age / Target FIRE Age", min_value=current_age+1, max_value=80, value=max(50, current_age+1), step=1)
@@ -79,12 +81,12 @@ tab1, tab2, tab3 = st.tabs(["Retirement Planner", "FIRE Number Calculator", "Sim
 
 # Tab 1: Retirement Planner
 with tab1:
-    if monthly_savings == 0:
-        st.success(f"Your Investments are in Place! You can retire safely at {retirement_age}!")
-    else:
-        st.warning(f"You Retirement Plans can be met with monthly SIP of ₹{monthly_savings}")
+    st.caption("> Explore your retirement plan with Estimated SIP requirement. Visualize how your SIP contributions grow over time, and understand estimated expenses post-retirement.")
+    st.divider()
+    
     c1, c2 = st.columns([3, 4])
     with c2:
+        st.info(f"Your inflation adjusted monthly expenses of ₹{round(monthly_expenses)} post retirement are all covered!")
         # Pie Chart: Contributions vs. Returns Breakdown
         total_contributions = monthly_savings * 12 * years_to_fire
         total_returns = total_corpus - total_contributions - current_investments
@@ -98,6 +100,11 @@ with tab1:
         )
 
     with c1:
+        if monthly_savings == 0:
+            st.success(f"Your Investments are in Place! You can retire safely at {retirement_age}!")
+        else:
+            st.warning(f"You Retirement Plans can be met with monthly SIP of ₹{monthly_savings}")
+    
         # Metrics for quick insights
         st.metric("Estimated Corpus at Retirement", f"₹{total_corpus:,.0f}")
         st.metric("Monthly Savings Required", f"₹{monthly_savings}")
@@ -106,12 +113,13 @@ with tab1:
 
     years = list(range(current_age, retirement_age+1))
 
-    st.info(f"Your inflation adjusted monthly expenses of ₹{round(monthly_expenses)} post retirement are all covered!")
              
 # Tab 2: FIRE Number Calculator
 with tab2:
-    st.header("FIRE Number Calculator")
-    
+    # st.header("FIRE Number Calculator")
+    st.caption("> Calculate your FIRE (Financial Independence, Retire Early) number—your target retirement corpus. Understand how much you need to save to achieve financial freedom.")
+    st.divider()
+
     # Metrics for FIRE Number and Monthly Investments Required
     col1, col2 = st.columns(2)
     with col1:
@@ -184,6 +192,9 @@ with tab2:
 
 # Display in the Simulation Tab
 with tab3:
+    st.caption("> Dive deeper into your retirement plan with a detailed year-by-year simulation. See the growth of your corpus during the accumulation phase and how withdrawals impact it post-retirement.")
+    st.divider()
+    
     # Generate inflation-adjusted monthly withdrawal amounts for withdrawal phase
     inflation_adjusted_withdrawal = [monthly_expenses * (1 + inflation_rate) ** i 
                                     for i in range(expected_mortality - retirement_age)]
